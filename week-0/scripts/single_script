@@ -1,0 +1,86 @@
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+export DEBIAN_FRONTEND=noninteractive
+
+echo "Updating apt..."
+sudo apt-get update -y
+sudo apt-get upgrade -y
+
+echo "Installing common dependencies..."
+sudo apt-get install -y build-essential git curl wget \
+    python3 python3-venv python3-pip make pkg-config \
+    bison flex libreadline-dev gawk tcl-dev libffi-dev \
+    graphviz xdot libboost-system-dev libboost-python-dev \
+    libboost-filesystem-dev zlib1g-dev m4 tcsh csh \
+    libx11-dev tcl-dev tk-dev libcairo2-dev mesa-common-dev \
+    libglu1-mesa-dev libncurses-dev apt-transport-https \
+    ca-certificates software-properties-common
+
+# Install Yosys
+if ! command -v yosys >/dev/null 2>&1; then
+  echo "Installing Yosys..."
+  git clone https://github.com/YosysHQ/yosys.git /tmp/yosys
+  cd /tmp/yosys
+  sudo apt-get install -y clang
+  make config-gcc
+  make -j"$(nproc)"
+  sudo make install
+fi
+
+# Install Icarus Verilog
+echo "Installing iverilog..."
+sudo apt-get install -y iverilog
+
+# Install GTKWave
+echo "Installing gtkwave..."
+sudo apt-get install -y gtkwave
+
+# Install ngspice (from source recommended)
+echo "Installing ngspice..."
+NGSPICE_VERSION="ngspice-37"
+cd /tmp
+if [ ! -d "$NGSPICE_VERSION" ]; then
+  # You may need to replace with the exact tarball name you downloaded
+  wget -q "https://sourceforge.net/projects/ngspice/files/ng-spice-rework/37/$NGSPICE_VERSION.tar.gz/download" -O ngspice.tar.gz
+  tar -zxvf ngspice.tar.gz
+  cd "$NGSPICE_VERSION"
+  mkdir -p release && cd release
+  ../configure --with-x --with-readline=yes --disable-debug
+  make -j"$(nproc)"
+  sudo make install
+fi
+
+# Install Magic
+echo "Installing Magic..."
+cd /tmp
+if [ ! -d magic ]; then
+  git clone https://github.com/RTimothyEdwards/magic.git
+  cd magic
+  ./configure
+  make -j"$(nproc)"
+  sudo make install
+fi
+
+# Install Docker (required for OpenLane)
+echo "Installing Docker..."
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker-archive-keyring.gpg
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker-archive-keyring.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt-get update -y
+sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+sudo groupadd -f docker
+sudo usermod -aG docker "$USER"
+
+# Install OpenLane (cloned repo + make)
+echo "Installing OpenLane..."
+cd "$HOME"
+if [ ! -d OpenLane ]; then
+  git clone https://github.com/The-OpenROAD-Project/OpenLane.git
+  cd OpenLane
+  make -j"$(nproc)"
+  make test || echo "OpenLane tests had issues; continue to manual checks"
+fi
+
+echo "Installation script complete. Reboot may be required for docker group membership to take effect."
+```
