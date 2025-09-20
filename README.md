@@ -15,11 +15,8 @@ A collaborative initiative by VSD and IIT Gandhinagar, the RISC-V SoC Tapeout Pr
 5. [Quick install scripts](#quick-install-scripts)  
 6. [Manual installation instructions (by tool)](#manual-installation-instructions-by-tool)  
 7. [Verification / Smoke tests](#verification--smoke-tests)  
-8. [Repository layout & files added](#repository-layout--files-added)  
-9. [Usage examples / Typical workflow](#usage-examples--typical-workflow)  
-10. [Troubleshooting & Notes](#troubleshooting--notes)  
-11. [Acknowledgements & References](#acknowledgements--references)  
-12. [Conclusion](#conclusion)
+8. [Acknowledgements & References](#acknowledgements--references)  
+9. [Conclusion](#conclusion)
 
 ---
 
@@ -44,7 +41,6 @@ Minimum recommended configuration (per program guidelines):
 - **OS:** Ubuntu 20.04 LTS or later (Ubuntu 20.04+ recommended)  
 - **Recommended VM:** Oracle VirtualBox (host: Windows/macOS/Linux) — download from https://www.virtualbox.org/wiki/Downloads
 
-> Note: these requirements and tool choices align with the provided installation guidelines. :contentReference[oaicite:1]{index=1}
 
 ---
 
@@ -60,7 +56,6 @@ Below are the tools used in this program, brief descriptions of why they’re re
 - **Docker** — Container runtime used to run some parts of the flow reproducibly; OpenLane uses Docker images heavily.
 - **(Optional) OpenSTA** — Static timing analysis tool (guideline mentions it's not required for SFAL participants but is part of the ecosystem).
 
-These tools and their installation steps are adapted from the program installation document. :contentReference[oaicite:2]{index=2}
 
 ---
 
@@ -155,4 +150,258 @@ if [ ! -d OpenLane ]; then
 fi
 
 echo "Installation script complete. Reboot may be required for docker group membership to take effect."
+```
 
+---
+
+## Manual Installation Instructions (By Tool)
+
+Designing a chip is like preparing a symphony — each tool is an instrument with its own role, and when they play together, we get silicon as the final masterpiece. Below are the manual installation steps for each tool, along with why they matter.
+
+🛠️ Yosys – The Composer (Synthesis)
+
+Think of Yosys as the composer of our design symphony. It takes the high-level music (Verilog RTL) and translates it into precise sheet notes (gate-level netlists) that other players can understand.
+
+Install:
+```bash
+sudo apt-get update
+git clone https://github.com/YosysHQ/yosys.git
+cd yosys
+sudo apt install -y make clang build-essential bison flex \
+  libreadline-dev gawk tcl-dev libffi-dev git \
+  graphviz xdot pkg-config python3 \
+  libboost-system-dev libboost-python-dev libboost-filesystem-dev zlib1g-dev
+make config-gcc
+make -j$(nproc)
+sudo make install
+```
+
+🖥️ Icarus Verilog – The Performer (Simulation)
+
+Before we send our design to fabrication, we need to see if it performs correctly. Icarus Verilog plays the RTL as a musician would, ensuring the notes sound right.
+
+Install:
+
+```
+sudo apt-get update
+sudo apt-get install -y iverilog
+```
+
+🌊 GTKWave – The Conductor’s Score (Waveform Viewer)
+
+When music is played, the conductor sees the waves of sound. GTKWave lets us “see” our Verilog simulations as waveforms, so we can spot bugs like sour notes in a melody.
+
+Install:
+
+```
+sudo apt-get update
+sudo apt-get install -y gtkwave
+```
+
+🔌 ngspice – The Sound Engineer (Analog Simulation)
+
+Not all sounds are digital — some are analog. ngspice is our sound engineer, testing circuits at the transistor level and ensuring analog macros (like PLLs) blend smoothly with digital design.
+
+Install:
+
+```
+tar -zxvf ngspice-37.tar.gz
+cd ngspice-37
+mkdir release && cd release
+../configure --with-x --with-readline=yes --disable-debug
+make -j$(nproc)
+sudo make install
+```
+
+🧩 Magic – The Architect (Layout Tool)
+
+Once the music is written, we need a concert hall. Magic is the architect of our chip layouts, letting us see and edit the physical placement of transistors and wires. It checks whether everything is built safely and to spec.
+
+Install:
+
+```
+sudo apt-get install -y m4 tcsh csh libx11-dev tcl-dev tk-dev \
+  libcairo2-dev mesa-common-dev libglu1-mesa-dev libncurses-dev
+git clone https://github.com/RTimothyEdwards/magic
+cd magic
+./configure
+make -j$(nproc)
+sudo make install
+```
+
+📦 Docker – The Stage Manager (Environment Control)
+
+Concerts fall apart without logistics. Docker ensures every tool and dependency is packed neatly in containers, so the show runs identically on every machine.
+
+Install:
+
+```
+sudo apt update
+sudo apt install -y apt-transport-https ca-certificates curl software-properties-common
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /usr/share/keyrings/docker.gpg
+echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | \
+  sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+sudo apt update
+sudo apt install -y docker-ce docker-ce-cli containerd.io
+sudo groupadd -f docker
+sudo usermod -aG docker $USER
+# Logout and login again or reboot
+```
+
+🚀 OpenLane – The Orchestra (RTL to GDS Flow)
+
+Finally, OpenLane brings together all instruments — from synthesis to layout — into one orchestra. It automates the RTL-to-GDSII flow so your design can be ready for tapeout.
+
+Install:
+
+```
+cd $HOME
+git clone https://github.com/The-OpenROAD-Project/OpenLane
+cd OpenLane
+make
+make test
+```
+
+
+🔑 Tip: Installing manually deepens understanding — you see what each tool needs, how they interconnect, and why order matters. Together, these tools create the complete ecosystem required to take your design from concept to silicon reality.
+
+---
+
+## Verification / Smoke Tests
+
+After installing all tools, it’s important to confirm that they are working correctly. Below are simple version checks and small test runs to ensure your environment is set up properly.
+
+🔎 Version Checks
+
+Run these commands to confirm the tools are installed and accessible:
+
+```
+yosys -V           # Yosys version
+iverilog -v        # Icarus Verilog version
+gtkwave --version  # GTKWave version
+ngspice -v         # ngspice version
+magic -v           # Magic version
+docker --version   # Docker version
+python3 --version  # Python version
+git --version      # Git version
+```
+
+🧪 Functional Test – Verilog Simulation
+
+Create a simple Verilog file and simulate it with Icarus Verilog:
+
+```
+cat > hello.v <<'EOF'
+module tb;
+  initial begin
+    $display("Hello, RISC-V SoC Tapeout!");
+    $finish;
+  end
+endmodule
+EOF
+
+iverilog -o hello_tb.vvp hello.v
+vvp hello_tb.vvp
+```
+
+Expected output:
+
+```
+Hello, RISC-V SoC Tapeout!
+```
+
+📈 Waveform Check with GTKWave
+
+Modify the testbench to dump waveforms:
+
+```
+cat > hello_wave.v <<'EOF'
+module tb;
+  initial begin
+    $dumpfile("hello.vcd");
+    $dumpvars(0, tb);
+    #10 $finish;
+  end
+endmodule
+EOF
+
+iverilog -o hello_wave.vvp hello_wave.v
+vvp hello_wave.vvp
+gtkwave hello.vcd &
+```
+
+
+GTKWave should open and display the timeline of signals.
+
+⚡ OpenLane Quick Test
+
+If OpenLane was installed with Docker, run the included test flow:
+
+```
+cd ~/OpenLane
+make test
+```
+
+
+If the setup is correct, you will see logs indicating the synthesis, placement, and routing of a small design.
+
+---
+
+
+## Acknowledgements & References
+🙏 Acknowledgements
+
+VLSI System Design (VSD)
+For their pivotal role in co-developing the RISC-V SoC Tapeout Program, providing industry-grade tools, and facilitating hands-on training. 
+VLSI System Design
+
+Indian Institute of Technology Gandhinagar (IITGN)
+For hosting and executing the program, offering access to state-of-the-art infrastructure, and fostering a collaborative research environment. 
+IIT Gandhinagar
+
+Synopsys
+For supplying Electronic Design Automation (EDA) tools essential for the design and verification processes.
+
+SCL180 PDK
+For providing the Process Design Kit that enabled the physical design and tapeout stages.
+
+Participating Students and Faculty
+For their dedication, innovative contributions, and collaborative spirit throughout the program.
+
+📚 References
+
+VLSI System Design (VSD)
+Official website detailing the RISC-V Reference SoC Tapeout Program:
+
+VLSI System Design
+
+Indian Institute of Technology Gandhinagar (IITGN)
+Information on the Visiting Students Programme:
+
+IIT Gandhinagar
+
+Synopsys
+Provider of EDA tools for chip design and verification.
+
+SCL180 PDK
+Process Design Kit used for the physical design and tapeout stages.
+
+---
+
+## Conclusion
+🎯 Program Overview
+
+The RISC-V SoC Tapeout Program is a comprehensive 20-week initiative developed collaboratively by VLSI System Design (VSD) and Indian Institute of Technology Gandhinagar (IITGN). This program offers participants a hands-on experience in designing, implementing, and fabricating a RISC-V System-on-Chip (SoC) using industry-grade tools and methodologies. 
+VLSI System Design
+
+🛠️ Key Highlights
+
+End-to-End Design Flow: Participants engage in the complete SoC design cycle, from RTL design to GDSII and post-silicon validation.
+
+Industry-Grade Tools: Utilization of Synopsys EDA tools and the SCL180 nm Process Design Kit (PDK) ensures a realistic design environment.
+
+Collaborative Learning: The program fosters collaboration among students, educators, and professionals, promoting knowledge sharing and innovation.
+
+Real-World Application: The program aligns with India's Semiconductor Mission, aiming to develop skilled silicon designers capable of contributing to the nation's semiconductor ecosystem.
+
+# work by : Naveen J
